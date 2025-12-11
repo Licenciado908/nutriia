@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: nutriia
       POSTGRES_PASSWORD: nutriia
-      POSTGRES_DB: nutriia_db
+      POSTGRES_DB: d
     ports:
       - "5433:5432"
     volumes:

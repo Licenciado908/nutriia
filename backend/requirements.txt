@@ -9,3 +9,5 @@ httpx
 python-jose[cryptography]
 passlib[bcrypt]
 email-validator
+google-generativeai
+python-multipart
