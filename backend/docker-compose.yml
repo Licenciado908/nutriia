@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: nutriia_db
+    environment:
+      POSTGRES_USER: nutriia
+      POSTGRES_PASSWORD: nutriia
+      POSTGRES_DB: nutriia_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: nutriia_backend
+    env_file:
+      - .env
+    depends_on:
+      - db
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./backend:/app
+
+  adminer:
+    image: adminer
+    container_name: nutriia_adminer
+    restart: always
+    ports:
+      - "8080:8080"
+
+
+volumes:
+  postgres_data:
+
+ 
