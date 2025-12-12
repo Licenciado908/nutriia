@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nutriia_frontend/pages/nutritionist_home_page.dart';
 import 'package:nutriia_frontend/services/auth_api.dart';
 import '../widgets/liquid_metal_card.dart';
 import '../widgets/liquid_background.dart';
@@ -57,12 +58,24 @@ class _LoginPageState extends State<LoginPage> {
     try {
       if (_isLogin) {
         // LOGIN NORMAL → por ahora todos van a MainShell
-        await _authApi.login(email: email, password: password);
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainShell()),
-        );
+        final auth = await _authApi.login(
+  email: email,
+  password: password,
+);
+
+if (!mounted) return;
+
+final role = auth.user.role.toLowerCase();
+
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (_) => role == 'nutricionista'
+        ? const NutritionistHomePage()
+        : const MainShell(),
+  ),
+);
+
       } else {
         // REGISTRO
         if (name.isEmpty) {
