@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 
 class Patient(Base):
@@ -18,25 +18,30 @@ class Patient(Base):
     full_name = Column(String, nullable=False)
     email = Column(String, nullable=True)
 
-    # 👇 Relación al usuario-paciente (User.role == "paciente")
+    # Relación al usuario-paciente
     user = relationship(
         "User",
         back_populates="patient_profile",
         foreign_keys=[user_id],
     )
 
-    # 👇 Relación al usuario-nutricionista (User.role == "nutricionista")
+    # Relación al usuario-nutricionista
     nutritionist = relationship(
         "User",
         back_populates="patients",
         foreign_keys=[nutritionist_id],
     )
 
-    # 👇 Relación con Planes de alimentación
-    #    Asumiendo que en Plan tienes:
-    #    patient = relationship("Patient", back_populates="plans")
+    # Relación con planes
     plans = relationship(
         "Plan",
+        back_populates="patient",
+        cascade="all, delete-orphan",
+    )
+
+    # ✅ RELACIÓN CON INDICADORES (AQUÍ ADENTRO)
+    indicators = relationship(
+        "PatientIndicator",
         back_populates="patient",
         cascade="all, delete-orphan",
     )

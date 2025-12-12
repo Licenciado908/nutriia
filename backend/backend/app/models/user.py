@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 
 class User(Base):
@@ -26,4 +26,11 @@ class User(Base):
         "Patient",
         back_populates="nutritionist",
         foreign_keys="Patient.nutritionist_id",
+    )
+
+    # ✅ Relación: un usuario (paciente) tiene muchas comidas
+    meals = relationship(
+        "Meal",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
