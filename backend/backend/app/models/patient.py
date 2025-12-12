@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Numeric, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -8,15 +8,35 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # FK al usuario-paciente
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # FK al usuario-nutricionista
+    nutritionist_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
     full_name = Column(String, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, nullable=True)
 
-    # Campos extra útiles para nutrición
-    fecha_nacimiento = Column(Date, nullable=True)
-    genero = Column(String, nullable=True)
-    altura_cm = Column(Integer, nullable=True)
-    peso_kg = Column(Numeric(5, 2), nullable=True)
-    condiciones_medicas = Column(Text, nullable=True)
+    # 👇 Relación al usuario-paciente (User.role == "paciente")
+    user = relationship(
+        "User",
+        back_populates="patient_profile",
+        foreign_keys=[user_id],
+    )
 
-    # Relación con planes
-    plans = relationship("Plan", back_populates="patient")
+    # 👇 Relación al usuario-nutricionista (User.role == "nutricionista")
+    nutritionist = relationship(
+        "User",
+        back_populates="patients",
+        foreign_keys=[nutritionist_id],
+    )
+
+    # 👇 Relación con Planes de alimentación
+    #    Asumiendo que en Plan tienes:
+    #    patient = relationship("Patient", back_populates="plans")
+    plans = relationship(
+        "Plan",
+        back_populates="patient",
+        cascade="all, delete-orphan",
+    )

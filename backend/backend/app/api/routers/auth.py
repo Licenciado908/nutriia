@@ -1,81 +1,233 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
-# Imports de tu proyecto
-from app.api import deps
-from app.core.security import get_password_hash
+from app.api.deps import get_db
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    verify_password,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+)
 from app.models.user import User
-# Asegúrate de importar esto para el login
-from fastapi.security import OAuth2PasswordRequestForm
-from app.core.security import create_access_token
-from datetime import timedelta
-from app.core.config import settings
+from app.models.patient import Patient
+from app.schemas.user import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    NutritionistRegisterRequest,
+    PatientRegisterRequest,
+)
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+)
 
-# --- ESQUEMAS ---
-class UserRegister(BaseModel):
-    email: str
-    password: str
-    full_name: str
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    user: dict
-
-# --- ENDPOINT REGISTRO (El que estaba fallando) ---
-@router.post("/register", status_code=201)
-def register(user_in: UserRegister, db: Session = Depends(deps.get_db)):
-    # 1. Verificar si el email ya existe
-    user = db.query(User).filter(User.email == user_in.email).first()
-    if user:
+# =======================
+# REGISTRO GENERICO (si ya lo usas)
+# =======================
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == user_in.email).first()
+    if existing:
         raise HTTPException(
-            status_code=400,
-            detail="El email ya está registrado.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un usuario con este email.",
         )
 
-    # 2. Crear usuario
+    hashed = get_password_hash(user_in.password)
     user = User(
-        email=user_in.email,
-        hashed_password=get_password_hash(user_in.password),
         full_name=user_in.full_name,
-        role="paciente" # Rol por defecto
+        email=user_in.email,
+        hashed_password=hashed,
+        role=user_in.role,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
 
-    return {"message": "Usuario creado exitosamente", "id": user.id}
 
-# --- ENDPOINT LOGIN (Existente) ---
-@router.post("/login", response_model=Token)
-def login_access_token(db: Session = Depends(deps.get_db), form_data: OAuth2PasswordRequestForm = Depends()):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not user.hashed_password: # Verificar pass (simplificado)
-        # NOTA: Aquí deberías usar verify_password(form_data.password, user.hashed_password)
-        # Pero por brevedad en este ejemplo asumo que ya tienes la lógica de validación
-        pass
+# =======================
+# REGISTRO DE NUTRICIONISTA
+# =======================
+@router.post(
+    "/register-nutri",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_nutritionist(
+    data: NutritionistRegisterRequest,
+    db: Session = Depends(get_db),
+):
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un usuario con este email.",
+        )
 
-        # Validación simple de password (Implementa verify_password correctamente en tu security.py)
-    # import contextlib
-    # with contextlib.suppress(Exception):
-    #     if not verify_password(form_data.password, user.hashed_password):
-    #         raise HTTPException(status_code=400, detail="Password incorrecto")
+    hashed = get_password_hash(data.password)
+    user = User(
+        full_name=data.full_name,
+        email=data.email,
+        hashed_password=hashed,
+        role="nutricionista",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)}, expires_delta=access_token_expires
+
+# =======================
+# REGISTRO DE PACIENTE
+# =======================
+
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    verify_password,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+)
+from app.models.user import User
+from app.models.patient import Patient
+from app.schemas.user import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    NutritionistRegisterRequest,
+    PatientRegisterRequest,
+)
+
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+)
+
+# ... register, register-nutri, login, etc. ...
+
+@router.post(
+    "/register-patient",
+    status_code=status.HTTP_201_CREATED,
+)
+def register_patient(
+    data: PatientRegisterRequest,
+    db: Session = Depends(get_db),
+):
+    # 1. Verificar que el email del paciente no exista
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un usuario con este email.",
+        )
+
+    # 2. Buscar al nutricionista por email y rol
+    nutritionist = (
+        db.query(User)
+        .filter(
+            User.email == data.nutritionist_email,
+            User.role == "nutricionista",
+        )
+        .first()
+    )
+    if not nutritionist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nutricionista no encontrado con ese email.",
+        )
+
+    try:
+        # 3. Crear el usuario paciente (SIN commit aún)
+        hashed = get_password_hash(data.password)
+        user_paciente = User(
+            full_name=data.full_name,
+            email=data.email,
+            hashed_password=hashed,
+            role="paciente",
+        )
+        db.add(user_paciente)
+        db.flush()  # ya tiene id, pero sin commit definitivo
+
+        # 4. Crear el patient asociado
+        patient = Patient(
+            user_id=user_paciente.id,
+            nutritionist_id=nutritionist.id,
+            full_name=data.full_name,
+            email=data.email,
+            # el resto de campos opcionales se pueden dejar como None
+        )
+        db.add(patient)
+
+        # 5. Commit conjunto
+        db.commit()
+        db.refresh(user_paciente)
+        db.refresh(patient)
+
+    except Exception as e:
+        db.rollback()
+        print("ERROR en register_patient:", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al registrar el paciente.",
+        )
+
+    return {
+        "user": {
+            "id": user_paciente.id,
+            "full_name": user_paciente.full_name,
+            "email": user_paciente.email,
+            "role": user_paciente.role,
+        },
+        "patient": {
+            "id": patient.id,
+            "user_id": patient.user_id,
+            "nutritionist_id": patient.nutritionist_id,
+        },
+    }
+
+
+# =======================
+# LOGIN (igual que antes)
+# =======================
+@router.post("/login")
+def login(user_in: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_in.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email o contraseña incorrectos.",
+        )
+
+    if not verify_password(user_in.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email o contraseña incorrectos.",
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    token = create_access_token(
+        data={"sub": str(user.id), "role": user.role},
+        expires_delta=access_token_expires,
     )
 
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role
-        }
+      "access_token": token,
+      "token_type": "bearer",
+      "user": {
+          "id": user.id,
+          "full_name": user.full_name,
+          "email": user.email,
+          "role": user.role,
+      },
     }

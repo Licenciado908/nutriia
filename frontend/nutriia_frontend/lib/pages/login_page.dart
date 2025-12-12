@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import '../services/auth_api.dart';
+import 'package:nutriia_frontend/services/auth_api.dart';
 import '../widgets/liquid_metal_card.dart';
 import '../widgets/liquid_background.dart';
 import 'main_shell.dart';
+
+enum UserType {
+  paciente,
+  nutricionista,
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,15 +23,19 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _nutriEmailController = TextEditingController();
 
   bool _isLoading = false;
   bool _isLogin = true;
+
+  UserType _selectedType = UserType.paciente;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _nutriEmailController.dispose();
     super.dispose();
   }
 
@@ -35,27 +43,82 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final name = _nameController.text.trim();
+    final nutriEmail = _nutriEmailController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Llena los campos obligatorios')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Llena los campos obligatorios')),
+      );
       return;
     }
+
     setState(() => _isLoading = true);
+
     try {
       if (_isLogin) {
+        // LOGIN NORMAL → por ahora todos van a MainShell
         await _authApi.login(email: email, password: password);
         if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainShell()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainShell()),
+        );
       } else {
-        if (name.isEmpty) throw Exception("Nombre obligatorio");
-        await _authApi.register(email: email, password: password, fullName: name);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cuenta creada! Inicia sesión.'), backgroundColor: Colors.green));
-        setState(() { _isLogin = true; _passwordController.clear(); });
+        // REGISTRO
+        if (name.isEmpty) {
+          throw Exception("Nombre obligatorio");
+        }
+
+        if (_selectedType == UserType.paciente) {
+          // REGISTRO PACIENTE
+          if (nutriEmail.isEmpty) {
+            throw Exception("Debes ingresar el email de tu nutricionista.");
+          }
+
+          await _authApi.registerPatient(
+            fullName: name,
+            email: email,
+            password: password,
+            nutritionistEmail: nutriEmail,
+          );
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Paciente registrado! Ahora inicia sesión.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          setState(() {
+            _isLogin = true;
+            _passwordController.clear();
+            _nutriEmailController.clear();
+          });
+        } else {
+          // REGISTRO NUTRICIONISTA → SOLO MENSAJE
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'El registro de nutricionistas lo gestiona Recursos Humanos.\n'
+                'Por favor, ponte en contacto con el departamento de RRHH.',
+              ),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+          // No llamamos a ningún endpoint aquí.
+        }
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll("Exception:", "").trim()), backgroundColor: Colors.redAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll("Exception:", "").trim(),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -72,10 +135,11 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 1. LOGO (Tamaño medio para no robar protagonismo al texto)
+                // LOGO
                 ShaderMask(
                   shaderCallback: (bounds) => const LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [Colors.white, Color(0xFFAFAFAF), Color(0xFF505050)],
                     stops: [0.1, 0.5, 0.9],
                   ).createShader(bounds),
@@ -84,42 +148,42 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 10),
 
-                // 2. TÍTULO DE LA APP (JERARQUÍA MÁXIMA)
-                // Aumentado drásticamente para ser el elemento visual dominante
+                // TÍTULO
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                        'nutri',
-                        style: GoogleFonts.syne(
-                            fontSize: 65, // Aumentado de 50 a 65
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -2.0,
-                            height: 0.9 // Compacta la línea
-                        )
+                      'nutri',
+                      style: GoogleFonts.syne(
+                        fontSize: 65,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: -2.0,
+                        height: 0.9,
+                      ),
                     ),
                     ShaderMask(
                       shaderCallback: (bounds) => const LinearGradient(
-                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                         colors: [Colors.white, Color(0xFFB0BEC5), Color(0xFF37474F)],
                       ).createShader(bounds),
                       child: Text(
-                          'IA',
-                          style: GoogleFonts.syne(
-                              fontSize: 80, // Aumentado de 60 a 80 (GIGANTE)
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              height: 0.9
-                          )
+                        'IA',
+                        style: GoogleFonts.syne(
+                          fontSize: 80,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 0.9,
+                        ),
                       ),
                     ),
                   ],
                 ),
 
-                // 3. SLOGAN (JERARQUÍA BAJA - Detalle sutil)
+                // SLOGAN
                 Container(
                   margin: const EdgeInsets.only(top: 15),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
@@ -132,9 +196,9 @@ class _LoginPageState extends State<LoginPage> {
                     'TU ACOMPAÑANTE NUTRICIONAL',
                     style: GoogleFonts.syne(
                       color: Colors.greenAccent,
-                      fontSize: 11, // Reducido ligeramente para elegancia
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 3.0, // Muy espaciado para diferenciar del título
+                      letterSpacing: 3.0,
                     ),
                   ),
                 ),
@@ -146,52 +210,84 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     children: [
                       if (!_isLogin) ...[
-                        _buildInput(_nameController, 'NOMBRE COMPLETO', Icons.person),
+                        _buildInput(
+                          _nameController,
+                          'NOMBRE COMPLETO',
+                          Icons.person,
+                        ),
                         const SizedBox(height: 20),
                       ],
-                      _buildInput(_emailController, 'EMAIL', Icons.alternate_email),
+                      _buildInput(
+                        _emailController,
+                        'EMAIL',
+                        Icons.alternate_email,
+                      ),
                       const SizedBox(height: 20),
-                      _buildInput(_passwordController, 'CONTRASEÑA', Icons.lock, obscure: true),
-                      const SizedBox(height: 40),
+                      _buildInput(
+                        _passwordController,
+                        'CONTRASEÑA',
+                        Icons.lock,
+                        obscure: true,
+                      ),
+                      const SizedBox(height: 20),
 
-                      // 4. BOTÓN DE ACCIÓN (JERARQUÍA MEDIA)
-                      // Texto reducido a 18px para que no compita con el título de 80px
+                      if (!_isLogin) ...[
+                        _buildUserTypeSelector(),
+                        const SizedBox(height: 20),
+
+                        if (_selectedType == UserType.paciente) ...[
+                          _buildInput(
+                            _nutriEmailController,
+                            'EMAIL DE TU NUTRICIONISTA',
+                            Icons.medical_information,
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ],
+
+                      const SizedBox(height: 20),
+
+                      // BOTÓN PRINCIPAL
                       Container(
                         width: double.infinity,
                         height: 60,
                         decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(35),
-                            gradient: LinearGradient(
-                              colors: _isLogin
-                                  ? [const Color(0xFF2E7D32), const Color(0xFF43A047)]
-                                  : [const Color(0xFF00C853), const Color(0xFF69F0AE)],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: _isLogin ? Colors.green.withOpacity(0.4) : Colors.greenAccent.withOpacity(0.6),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 5)
-                              )
-                            ]
+                          borderRadius: BorderRadius.circular(35),
+                          gradient: LinearGradient(
+                            colors: _isLogin
+                                ? [const Color(0xFF2E7D32), const Color(0xFF43A047)]
+                                : [const Color(0xFF00C853), const Color(0xFF69F0AE)],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _isLogin
+                                  ? Colors.green.withOpacity(0.4)
+                                  : Colors.greenAccent.withOpacity(0.6),
+                              blurRadius: 20,
+                              offset: const Offset(0, 5),
+                            )
+                          ],
                         ),
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _onSubmit,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(35),
+                            ),
                           ),
                           child: _isLoading
                               ? const CircularProgressIndicator(color: Colors.white)
                               : Text(
-                              _isLogin ? 'ACCEDER' : 'CREAR CUENTA',
-                              style: GoogleFonts.syne(
-                                  fontSize: 18, // Reducido para equilibrar (antes 22)
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 2
-                              )
-                          ),
+                                  _isLogin ? 'ACCEDER' : 'CREAR CUENTA',
+                                  style: GoogleFonts.syne(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -200,17 +296,23 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 30),
 
-                // TEXTO DE CAMBIO (JERARQUÍA MÍNIMA)
+                // SWITCH LOGIN / REGISTRO
                 TextButton(
-                  onPressed: () => setState(() => _isLogin = !_isLogin),
+                  onPressed: () {
+                    setState(() {
+                      _isLogin = !_isLogin;
+                    });
+                  },
                   child: Text(
-                    _isLogin ? '¿PRIMERA VEZ? CREA TU CUENTA' : 'YA TENGO CUENTA',
+                    _isLogin
+                        ? '¿PRIMERA VEZ? CREA TU CUENTA'
+                        : 'YA TENGO CUENTA',
                     style: GoogleFonts.syne(
-                        color: Colors.white60,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13, // Pequeño y funcional
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.green
+                      color: Colors.white60,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.green,
                     ),
                   ),
                 ),
@@ -222,7 +324,12 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildInput(TextEditingController c, String l, IconData i, {bool obscure = false}) {
+  Widget _buildInput(
+    TextEditingController c,
+    String l,
+    IconData i, {
+    bool obscure = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.5),
@@ -230,16 +337,105 @@ class _LoginPageState extends State<LoginPage> {
         border: Border.all(color: Colors.white10),
       ),
       child: TextField(
-        controller: c, obscureText: obscure,
-        style: GoogleFonts.syne(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        controller: c,
+        obscureText: obscure,
+        style: GoogleFonts.syne(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
         decoration: InputDecoration(
           border: InputBorder.none,
           prefixIcon: Icon(i, color: Colors.white54, size: 20),
           labelText: l,
-          labelStyle: GoogleFonts.syne(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          labelStyle: GoogleFonts.syne(
+            color: Colors.white38,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildUserTypeSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedType = UserType.paciente;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: _selectedType == UserType.paciente
+                    ? const Color(0xFF00C853).withOpacity(0.2)
+                    : Colors.black.withOpacity(0.4),
+                border: Border.all(
+                  color: _selectedType == UserType.paciente
+                      ? Colors.greenAccent
+                      : Colors.white10,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  'SOY PACIENTE',
+                  style: GoogleFonts.syne(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedType = UserType.nutricionista;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: _selectedType == UserType.nutricionista
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.4),
+                border: Border.all(
+                  color: _selectedType == UserType.nutricionista
+                      ? Colors.white70
+                      : Colors.white10,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  'SOY NUTRICIONISTA',
+                  style: GoogleFonts.syne(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

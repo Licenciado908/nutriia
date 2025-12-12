@@ -1,15 +1,4 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional
-
-
-class UserBase(BaseModel):
-    full_name: str
-    email: EmailStr
-    role: str = "nutricionista"
-
-
-class UserCreate(UserBase):
-    password: str
+from pydantic import BaseModel, EmailStr
 
 
 class UserLogin(BaseModel):
@@ -17,7 +6,31 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserResponse(UserBase):
-    id: int
+class UserCreate(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+    role: str
 
-    model_config = ConfigDict(from_attributes=True)
+
+class UserResponse(BaseModel):
+    id: int
+    full_name: str
+    email: EmailStr
+    role: str
+
+    class Config:
+        orm_mode = True
+
+
+class NutritionistRegisterRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+
+
+class PatientRegisterRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+    nutritionist_email: EmailStr

@@ -3,7 +3,7 @@ import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../widgets/liquid_background.dart'; // Asegúrate de tener este archivo
+
 import '../widgets/liquid_metal_card.dart';
 import '../services/auth_api.dart';
 import 'login_page.dart';

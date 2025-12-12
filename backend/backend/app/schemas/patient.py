@@ -1,11 +1,11 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import date
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 
-class PatientCreate(BaseModel):
+class PatientBase(BaseModel):
     full_name: str
-    email: str
+    email: Optional[EmailStr] = None
     fecha_nacimiento: Optional[date] = None
     genero: Optional[str] = None
     altura_cm: Optional[int] = None
@@ -13,14 +13,14 @@ class PatientCreate(BaseModel):
     condiciones_medicas: Optional[str] = None
 
 
-class PatientResponse(BaseModel):
+class PatientCreate(PatientBase):
+    pass
+
+
+class PatientResponse(PatientBase):
     id: int
-    full_name: str
-    email: str
-    fecha_nacimiento: Optional[date] = None
-    genero: Optional[str] = None
-    altura_cm: Optional[int] = None
-    peso_kg: Optional[float] = None
-    condiciones_medicas: Optional[str] = None
+    user_id: int
+    nutritionist_id: int
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        orm_mode = True
